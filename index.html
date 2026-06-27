@@ -5,8 +5,6 @@
     <title>CSV Unit Name Editor</title>
     <style>
         body { font-family: sans-serif; margin: 40px; max-width: 600px; }
-        
-        /* Turn the actual file label/input into the dropzone box */
         .drop-zone-label {
             display: block;
             border: 2px dashed #ccc;
@@ -26,7 +24,7 @@
 <body>
 
     <h2>CSV Multi-Unit Name Editor</h2>
-    <p>Select or drag and drop CSV files to update <code>_2</code> unit names using their <code>_1</code> counterparts.</p>
+    <p>Select or drag and drop CSV files to update <code>_2</code> unit names using their <code>_1</code> counterparts. Check browser console (F12) for detailed logs.</p>
 
     <label for="fileInput" id="dropZone" class="drop-zone-label">
         Drag & drop CSV files here or <strong>click to select</strong>
@@ -40,7 +38,8 @@
         const fileInput = document.getElementById('fileInput');
         const log = document.getElementById('log');
 
-        // Drag and drop styles
+        console.log("Script initialized. Ready for file input.");
+
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropZone.style.borderColor = '#000';
@@ -56,11 +55,12 @@
             e.preventDefault();
             dropZone.style.borderColor = '#ccc';
             dropZone.style.background = '#fff';
+            console.log("Files dropped via drag-and-drop.");
             handleFiles(e.dataTransfer.files);
         });
 
-        // Natively triggers when files are selected via click
         fileInput.addEventListener('change', (e) => {
+            console.log("Files selected via file dialog picker.");
             handleFiles(e.target.files);
         });
 
@@ -69,61 +69,97 @@
             log.textContent += text + "\n";
         }
 
-        function processRow(row) {
-            if (!row || !row[0] || !row[0].trim()) return null;
+        function processRow(row, lineNum) {
+            if (!row || !row[0] || !row[0].trim()) {
+                console.log(`[Line ${lineNum}] Skipped: Empty row.`);
+                return null;
+            }
             const cleanId = row[0].trim();
-            if (cleanId.startsWith('//') || cleanId.startsWith('#') || cleanId.startsWith(';')) return null;
-            if (cleanId === '<ID|readonly|noverify>') return null;
-            if (row.length < 2) return null;
+            if (cleanId.startsWith('//') || cleanId.startsWith('#') || cleanId.startsWith(';')) {
+                console.log(`[Line ${lineNum}] Skipped: Comment line -> "${cleanId}"`);
+                return null;
+            }
+            if (cleanId === '<ID|readonly|noverify>') {
+                console.log(`[Line ${lineNum}] Skipped: Header row.`);
+                return null;
+            }
+            if (row.length < 2) {
+                console.log(`[Line ${lineNum}] Skipped: Row length less than 2 elements.`);
+                return null;
+            }
 
             const unitName = row[1].trim();
             if (!cleanId.endsWith('_0') && !cleanId.endsWith('_1') && !cleanId.endsWith('_2') && !cleanId.endsWith('_shop')) {
+                console.log(`[Line ${lineNum}] Skipped: Suffix does not match rules -> ID: "${cleanId}"`);
                 return null;
             }
+            
+            console.log(`[Line ${lineNum}] Valid Row Parsed -> ID: "${cleanId}", Name: "${unitName}"`);
             return { identifier: cleanId, unitName: unitName };
         }
 
         function handleFiles(files) {
-            if (files.length === 0) return;
+            if (files.length === 0) {
+                console.log("handleFiles called with 0 files.");
+                return;
+            }
+            console.log(`Processing ${files.length} file(s)...`);
             printLog(`Selected ${files.length} file(s). Starting update...\n`);
 
             Array.from(files).forEach(file => {
+                console.log(`Reading file: ${file.name} (${file.size} bytes)`);
                 const reader = new FileReader();
+                
                 reader.onload = function(e) {
                     try {
                         const text = e.target.result;
                         const lines = text.split(/\r?\n/);
+                        console.log(`File loaded successfully. Total raw lines detected: ${lines.length}`);
+                        
                         const unitNames = {};
                         let foundAnyValidRows = false;
 
-                        // First pass: Find _1 identifiers
+                        console.log("--- Starting Pass 1: Scanning for '_1' identifiers ---");
                         lines.forEach((line, index) => {
-                            if (index === 0 || !line.trim()) return;
+                            const lineNum = index + 1;
+                            if (index === 0 && line.includes('<ID|readonly|noverify>')) {
+                                console.log(`[Line ${lineNum}] Skipping global layout header.`);
+                                return;
+                            }
+                            if (!line.trim()) return;
+
                             const row = line.split(';');
-                            const processed = processRow(row);
+                            const processed = processRow(row, lineNum);
                             if (processed) {
                                 foundAnyValidRows = true;
                                 if (processed.identifier.endsWith('_1')) {
                                     const baseId = processed.identifier.slice(0, -2);
                                     unitNames[baseId] = processed.unitName;
+                                    console.log(`[Pass 1 Map] Stored: ${baseId} -> ${processed.unitName}`);
                                 }
                             }
                         });
 
+                        console.log("Pass 1 finished. Map of source names:", unitNames);
+
                         if (!foundAnyValidRows) {
+                            console.warn(`File ${file.name} ignored: structure has no matching target identifiers.`);
                             printLog(`Skipping ${file.name}: No valid unit IDs found to parse.`);
                             return;
                         }
 
-                        // Second pass: Rebuild file and swap out _2 matches
+                        console.log("--- Starting Pass 2: Rebuilding output data and swapping '_2' values ---");
                         const outputLines = ['<ID|readonly|noverify>;<English>'];
 
                         lines.forEach((line, index) => {
+                            const lineNum = index + 1;
                             if (index === 0 || !line.trim()) return;
+                            
                             const row = line.split(';');
-                            const processed = processRow(row);
+                            const processed = processRow(row, lineNum);
 
                             if (!processed) {
+                                console.log(`[Pass 2 Rebuild] Keeping raw format for line ${lineNum}: ${line}`);
                                 outputLines.push(line);
                                 return;
                             }
@@ -132,16 +168,20 @@
                             if (processed.identifier.endsWith('_2')) {
                                 const baseId = processed.identifier.slice(0, -2);
                                 if (baseId in unitNames) {
+                                    console.log(`[Pass 2 Match] Swapping line ${lineNum}: "${processed.identifier}" old name "${currentUnitName}" -> new name "${unitNames[baseId]}"`);
                                     currentUnitName = unitNames[baseId];
+                                } else {
+                                    console.log(`[Pass 2 Match] Warning: Found target "${processed.identifier}" but no matching base "_1" element exists.`);
                                 }
                             }
                             outputLines.push(`${processed.identifier};${currentUnitName}`);
                         });
 
-                        // Trigger download
+                        console.log(`Generating output string for download... Total lines: ${outputLines.length}`);
                         const outputText = outputLines.join('\n');
                         const blob = new Blob([outputText], { type: 'text/csv;charset=utf-8;' });
                         const url = URL.createObjectURL(blob);
+                        
                         const a = document.createElement('a');
                         a.href = url;
                         a.download = file.name;
@@ -150,12 +190,15 @@
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
 
+                        console.log(`Download triggered successfully for file: ${file.name}`);
                         printLog(`Successfully updated and downloaded: ${file.name}`);
 
                     } catch (err) {
+                        console.error(`Error encountered while compiling data structure:`, err);
                         printLog(`CRITICAL ERROR in ${file.name}: ${err.message}`);
                     }
-                });
+                };
+                
                 reader.readAsText(file);
             });
             
