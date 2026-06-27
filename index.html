@@ -5,28 +5,69 @@
     <title>CSV Unit Name Editor</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        body { font-family: "Times New Roman", Times, Baskerville, Georgia, serif; margin: 40px; max-width: 800px; }
+        * {
+            box-sizing: border-box;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            font-family: "Times New Roman", Times, Baskerville, Georgia, serif;
+            background: #121212;
+            color: #e0e0e0;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+        p {
+            margin: 0 0 15px 0;
+            width: 100%;
+            overflow-wrap: break-word;
+            font-size: 1.1rem;
+        }
         .drop-zone-label {
-            display: block;
-            border: 2px dashed #ccc;
-            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            width: 100%;
+            border: 2px dashed #444;
             text-align: center;
             cursor: pointer;
             margin-bottom: 20px;
-            background: #fff;
+            background: #1e1e1e;
+            font-size: 1.3rem;
+            color: #e0e0e0;
         }
         .drop-zone-label:hover {
-            border-color: #000;
-            background: #fafafa;
+            border-color: #888;
+            background: #252525;
         }
-        #log { white-space: pre-wrap; background: #eee; padding: 10px; font-family: monospace; display: none; }
+        #log { 
+            white-space: pre-wrap; 
+            background: #1e1e1e;
+            color: #a5d6a7;
+            padding: 15px; 
+            font-family: monospace; 
+            display: none; 
+            width: 100%;
+            max-height: 250px;
+            overflow-y: auto;
+            border-radius: 4px;
+            border: 1px solid #333;
+        }
     </style>
 </head>
 <body>
-    <p>Replaces _2 entries with _1 entries making it possible to see <5km naming at all times (air vehicles). </p>
+
+    <p>Replaces _2 entries with _1 entries making it possible to see <5km naming at all times (air vehicles).</p>
 
     <label for="fileInput" id="dropZone" class="drop-zone-label">
-        Drag & drop CSV file(s) here or <strong>click to select</strong>
+        <div>Drag & drop CSV file(s) here or <strong>click to select</strong></div>
         <input type="file" id="fileInput" multiple accept=".csv" style="display: none;">
     </label>
 
@@ -39,19 +80,19 @@
 
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
-            dropZone.style.borderColor = '#000';
-            dropZone.style.background = '#fafafa';
+            dropZone.style.borderColor = '#888';
+            dropZone.style.background = '#252525';
         });
 
         dropZone.addEventListener('dragleave', () => {
-            dropZone.style.borderColor = '#ccc';
-            dropZone.style.background = '#fff';
+            dropZone.style.borderColor = '#444';
+            dropZone.style.background = '#1e1e1e';
         });
 
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
-            dropZone.style.borderColor = '#ccc';
-            dropZone.style.background = '#fff';
+            dropZone.style.borderColor = '#444';
+            dropZone.style.background = '#1e1e1e';
             handleFiles(e.dataTransfer.files);
         });
 
@@ -62,6 +103,7 @@
         function printLog(text) {
             log.style.display = 'block';
             log.textContent += text + "\n";
+            log.scrollTop = log.scrollHeight;
         }
 
         function processRow(row, counts) {
@@ -75,7 +117,7 @@
                 return null;
             }
             if (cleanId === '<ID|readonly|noverify>') {
-                return null;
+                return null; 
             }
             if (row.length < 2) {
                 counts.skipped++;
@@ -94,7 +136,7 @@
         function handleFiles(files) {
             if (files.length === 0) return;
 
-            log.textContent = "";
+            log.textContent = ""; 
             printLog(`Selected ${files.length} file(s). Starting processing...`);
             
             const zip = new JSZip();
@@ -107,6 +149,7 @@
                     try {
                         const text = e.target.result;
                         const lines = text.split(/\r?\n/);
+                        
                         const counts = { skipped: 0, changed: 0 };
                         const unitNames = {};
                         let foundAnyValidRows = false;
@@ -192,7 +235,7 @@
                         URL.revokeObjectURL(url);
                         
                         console.log("ZIP downloaded");
-                        printLog("Process finished. ZIP download.");
+                        printLog("==============================\nProcess finished. ZIP downloaded.");
                     });
                 }
             }
