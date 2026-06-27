@@ -5,42 +5,21 @@
     <title>CSV Unit Name Editor</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        * {
-            box-sizing: border-box;
-        }
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: 100vw;
-            height: 100vh;
-            font-family: "Times New Roman", Times, Baskerville, Georgia, serif;
-            background: #121212;
-            color: #e0e0e0;
-        }
-        body {
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-        }
-        p {
-            margin: 0 0 15px 0;
-            width: 100%;
-            overflow-wrap: break-word;
-            font-size: 1.1rem;
+        body { 
+            font-family: "Times New Roman", Times, Baskerville, Georgia, serif; 
+            margin: 40px; 
+            max-width: 800px; 
+            background: #121212; /* Dark Mode Background */
+            color: #e0e0e0;      /* Light Text color */
         }
         .drop-zone-label {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            flex: 1;
-            width: 100%;
-            border: 2px dashed #444;
+            display: block;
+            border: 2px dashed #444; /* Darker border */
+            padding: 40px;
             text-align: center;
             cursor: pointer;
             margin-bottom: 20px;
-            background: #1e1e1e;
-            font-size: 1.3rem;
+            background: #1e1e1e;     /* Dark container background */
             color: #e0e0e0;
         }
         .drop-zone-label:hover {
@@ -50,24 +29,19 @@
         #log { 
             white-space: pre-wrap; 
             background: #1e1e1e;
-            color: #a5d6a7;
-            padding: 15px; 
+            color: #ffffff;
+            padding: 10px; 
             font-family: monospace; 
             display: none; 
-            width: 100%;
-            max-height: 250px;
-            overflow-y: auto;
-            border-radius: 4px;
             border: 1px solid #333;
         }
     </style>
 </head>
 <body>
-
-    <p>Replaces _2 entries with _1 entries making it possible to see <5km naming at all times (air vehicles).</p>
+    <p>Replaces _2 entries with _1 entries making it possible to see &lt;5km naming at all times (air vehicles). </p>
 
     <label for="fileInput" id="dropZone" class="drop-zone-label">
-        <div>Drag & drop CSV file(s) here or <strong>click to select</strong></div>
+        Drag & drop CSV file(s) here or <strong>click to select</strong>
         <input type="file" id="fileInput" multiple accept=".csv" style="display: none;">
     </label>
 
@@ -103,7 +77,6 @@
         function printLog(text) {
             log.style.display = 'block';
             log.textContent += text + "\n";
-            log.scrollTop = log.scrollHeight;
         }
 
         function processRow(row, counts) {
@@ -117,7 +90,7 @@
                 return null;
             }
             if (cleanId === '<ID|readonly|noverify>') {
-                return null; 
+                return null;
             }
             if (row.length < 2) {
                 counts.skipped++;
@@ -136,7 +109,7 @@
         function handleFiles(files) {
             if (files.length === 0) return;
 
-            log.textContent = ""; 
+            log.textContent = "";
             printLog(`Selected ${files.length} file(s). Starting processing...`);
             
             const zip = new JSZip();
@@ -149,7 +122,6 @@
                     try {
                         const text = e.target.result;
                         const lines = text.split(/\r?\n/);
-                        
                         const counts = { skipped: 0, changed: 0 };
                         const unitNames = {};
                         let foundAnyValidRows = false;
