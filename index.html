@@ -5,7 +5,7 @@
     <title>CSV Unit Name Editor</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        body { font-family: sans-serif; margin: 40px; max-width: 800px; }
+        body { font-family: 'Courier New', Courier, monospace; margin: 40px; max-width: 800px; }
         .drop-zone-label {
             display: block;
             border: 2px dashed #ccc;
@@ -23,12 +23,10 @@
     </style>
 </head>
 <body>
-
-    <h2>CSV Multi-Unit Name Editor</h2>
-    <p>Select or drag and drop CSVs.</p>
+    <p>Replaces _2 entries with _1 entries making it possible to see <5km naming at all times (air vehicles). </p>
 
     <label for="fileInput" id="dropZone" class="drop-zone-label">
-        Drag & drop CSV files here or <strong>click to select</strong>
+        Drag & drop CSV file(s) here or <strong>click to select</strong>
         <input type="file" id="fileInput" multiple accept=".csv" style="display: none;">
     </label>
 
