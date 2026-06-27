@@ -5,8 +5,21 @@
     <title>CSV Unit Name Editor</title>
     <style>
         body { font-family: sans-serif; margin: 40px; max-width: 600px; }
-        .drop-zone { border: 2px dashed #ccc; padding: 40px; text-align: center; cursor: pointer; margin-bottom: 20px; }
-        .drop-zone.hover { border-color: #000; background: #fafafa; }
+        
+        /* Turn the actual file label/input into the dropzone box */
+        .drop-zone-label {
+            display: block;
+            border: 2px dashed #ccc;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 20px;
+            background: #fff;
+        }
+        .drop-zone-label:hover {
+            border-color: #000;
+            background: #fafafa;
+        }
         #log { white-space: pre-wrap; background: #eee; padding: 10px; font-family: monospace; display: none; }
     </style>
 </head>
@@ -15,10 +28,10 @@
     <h2>CSV Multi-Unit Name Editor</h2>
     <p>Select or drag and drop CSV files to update <code>_2</code> unit names using their <code>_1</code> counterparts.</p>
 
-    <div id="dropZone" class="drop-zone">
-        Drag & drop CSV files here or click to select
-    </div>
-    <input type="file" id="fileInput" multiple accept=".csv" style="display: none;">
+    <label for="fileInput" id="dropZone" class="drop-zone-label">
+        Drag & drop CSV files here or <strong>click to select</strong>
+        <input type="file" id="fileInput" multiple accept=".csv" style="display: none;">
+    </label>
 
     <div id="log"></div>
 
@@ -27,22 +40,26 @@
         const fileInput = document.getElementById('fileInput');
         const log = document.getElementById('log');
 
-        // Clicking the dropzone now cleanly triggers the file selector
-        dropZone.addEventListener('click', () => fileInput.click());
-        
+        // Drag and drop styles
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
-            dropZone.classList.add('hover');
+            dropZone.style.borderColor = '#000';
+            dropZone.style.background = '#fafafa';
         });
 
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('hover'));
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.style.borderColor = '#ccc';
+            dropZone.style.background = '#fff';
+        });
 
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
-            dropZone.classList.remove('hover');
+            dropZone.style.borderColor = '#ccc';
+            dropZone.style.background = '#fff';
             handleFiles(e.dataTransfer.files);
         });
 
+        // Natively triggers when files are selected via click
         fileInput.addEventListener('change', (e) => {
             handleFiles(e.target.files);
         });
