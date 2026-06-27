@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>CSV Unit Name Editor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { font-family: sans-serif; margin: 40px; max-width: 600px; }
         .drop-zone-label {
@@ -24,7 +25,7 @@
 <body>
 
     <h2>CSV Multi-Unit Name Editor</h2>
-    <p>Select or drag and drop CSV files to update <code>_2</code> unit names using their <code>_1</code> counterparts. Check browser console (F12) for detailed logs.</p>
+    <p>Select or drag and drop CSV files. Updated files will automatically download bundled inside a single ZIP file.</p>
 
     <label for="fileInput" id="dropZone" class="drop-zone-label">
         Drag & drop CSV files here or <strong>click to select</strong>
@@ -37,8 +38,6 @@
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
         const log = document.getElementById('log');
-
-        console.log("Script initialized. Ready for file input.");
 
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -55,12 +54,10 @@
             e.preventDefault();
             dropZone.style.borderColor = '#ccc';
             dropZone.style.background = '#fff';
-            console.log("Files dropped via drag-and-drop.");
             handleFiles(e.dataTransfer.files);
         });
 
         fileInput.addEventListener('change', (e) => {
-            console.log("Files selected via file dialog picker.");
             handleFiles(e.target.files);
         });
 
@@ -69,97 +66,90 @@
             log.textContent += text + "\n";
         }
 
-        function processRow(row, lineNum) {
+        // Silent row processor - updates counts object instead of logging
+        function processRow(row, counts) {
             if (!row || !row[0] || !row[0].trim()) {
-                console.log(`[Line ${lineNum}] Skipped: Empty row.`);
+                counts.skipped++;
                 return null;
             }
             const cleanId = row[0].trim();
             if (cleanId.startsWith('//') || cleanId.startsWith('#') || cleanId.startsWith(';')) {
-                console.log(`[Line ${lineNum}] Skipped: Comment line -> "${cleanId}"`);
+                counts.skipped++;
                 return null;
             }
             if (cleanId === '<ID|readonly|noverify>') {
-                console.log(`[Line ${lineNum}] Skipped: Header row.`);
-                return null;
+                return null; // Header row isn't counted as "skipped" work
             }
             if (row.length < 2) {
-                console.log(`[Line ${lineNum}] Skipped: Row length less than 2 elements.`);
+                counts.skipped++;
                 return null;
             }
 
             const unitName = row[1].trim();
             if (!cleanId.endsWith('_0') && !cleanId.endsWith('_1') && !cleanId.endsWith('_2') && !cleanId.endsWith('_shop')) {
-                console.log(`[Line ${lineNum}] Skipped: Suffix does not match rules -> ID: "${cleanId}"`);
+                counts.skipped++;
                 return null;
             }
             
-            console.log(`[Line ${lineNum}] Valid Row Parsed -> ID: "${cleanId}", Name: "${unitName}"`);
             return { identifier: cleanId, unitName: unitName };
         }
 
         function handleFiles(files) {
-            if (files.length === 0) {
-                console.log("handleFiles called with 0 files.");
-                return;
-            }
-            console.log(`Processing ${files.length} file(s)...`);
-            printLog(`Selected ${files.length} file(s). Starting update...\n`);
+            if (files.length === 0) return;
+
+            log.textContent = ""; // Clear previous log
+            printLog(`Selected ${files.length} file(s). Starting processing...`);
+            
+            const zip = new JSZip();
+            let processedCount = 0;
 
             Array.from(files).forEach(file => {
-                console.log(`Reading file: ${file.name} (${file.size} bytes)`);
                 const reader = new FileReader();
                 
                 reader.onload = function(e) {
                     try {
                         const text = e.target.result;
                         const lines = text.split(/\r?\n/);
-                        console.log(`File loaded successfully. Total raw lines detected: ${lines.length}`);
                         
+                        // Per-file metrics tracking
+                        const counts = { skipped: 0, changed: 0 };
                         const unitNames = {};
                         let foundAnyValidRows = false;
 
-                        console.log("--- Starting Pass 1: Scanning for '_1' identifiers ---");
+                        // Pass 1: Gather _1 maps
                         lines.forEach((line, index) => {
-                            const lineNum = index + 1;
-                            if (index === 0 && line.includes('<ID|readonly|noverify>')) {
-                                console.log(`[Line ${lineNum}] Skipping global layout header.`);
-                                return;
-                            }
-                            if (!line.trim()) return;
-
+                            if (index === 0 || !line.trim()) return;
                             const row = line.split(';');
-                            const processed = processRow(row, lineNum);
+                            const processed = processRow(row, counts);
                             if (processed) {
                                 foundAnyValidRows = true;
                                 if (processed.identifier.endsWith('_1')) {
                                     const baseId = processed.identifier.slice(0, -2);
                                     unitNames[baseId] = processed.unitName;
-                                    console.log(`[Pass 1 Map] Stored: ${baseId} -> ${processed.unitName}`);
                                 }
                             }
                         });
 
-                        console.log("Pass 1 finished. Map of source names:", unitNames);
-
                         if (!foundAnyValidRows) {
-                            console.warn(`File ${file.name} ignored: structure has no matching target identifiers.`);
-                            printLog(`Skipping ${file.name}: No valid unit IDs found to parse.`);
+                            const summary = `Skipped ${file.name}: No valid target IDs found to parse.`;
+                            console.log(summary);
+                            printLog(summary);
+                            checkCompletion();
                             return;
                         }
 
-                        console.log("--- Starting Pass 2: Rebuilding output data and swapping '_2' values ---");
+                        // Pass 2: Apply changes
                         const outputLines = ['<ID|readonly|noverify>;<English>'];
 
                         lines.forEach((line, index) => {
-                            const lineNum = index + 1;
                             if (index === 0 || !line.trim()) return;
                             
                             const row = line.split(';');
-                            const processed = processRow(row, lineNum);
+                            // Dummy count object for pass 2 to prevent double-counting skipped lines
+                            const dummyCounts = { skipped: 0, changed: 0 };
+                            const processed = processRow(row, dummyCounts);
 
                             if (!processed) {
-                                console.log(`[Pass 2 Rebuild] Keeping raw format for line ${lineNum}: ${line}`);
                                 outputLines.push(line);
                                 return;
                             }
@@ -167,42 +157,55 @@
                             let currentUnitName = processed.unitName;
                             if (processed.identifier.endsWith('_2')) {
                                 const baseId = processed.identifier.slice(0, -2);
-                                if (baseId in unitNames) {
-                                    console.log(`[Pass 2 Match] Swapping line ${lineNum}: "${processed.identifier}" old name "${currentUnitName}" -> new name "${unitNames[baseId]}"`);
+                                if (baseId in unitNames && currentUnitName !== unitNames[baseId]) {
                                     currentUnitName = unitNames[baseId];
-                                } else {
-                                    console.log(`[Pass 2 Match] Warning: Found target "${processed.identifier}" but no matching base "_1" element exists.`);
+                                    counts.changed++;
                                 }
                             }
                             outputLines.push(`${processed.identifier};${currentUnitName}`);
                         });
 
-                        console.log(`Generating output string for download... Total lines: ${outputLines.length}`);
+                        // Add updated file contents directly into our ZIP generator
                         const outputText = outputLines.join('\n');
-                        const blob = new Blob([outputText], { type: 'text/csv;charset=utf-8;' });
-                        const url = URL.createObjectURL(blob);
-                        
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = file.name;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
+                        zip.file(file.name, outputText);
 
-                        console.log(`Download triggered successfully for file: ${file.name}`);
-                        printLog(`Successfully updated and downloaded: ${file.name}`);
+                        const summary = `${file.name} -> Processed successfully. Changes: ${counts.changed} | Skipped lines: ${counts.skipped}`;
+                        console.log(summary);
+                        printLog(summary);
 
                     } catch (err) {
-                        console.error(`Error encountered while compiling data structure:`, err);
-                        printLog(`CRITICAL ERROR in ${file.name}: ${err.message}`);
+                        const errorMsg = `CRITICAL ERROR in ${file.name}: ${err.message}`;
+                        console.error(errorMsg, err);
+                        printLog(errorMsg);
                     }
+
+                    checkCompletion();
                 };
                 
                 reader.readAsText(file);
             });
-            
-            printLog("\n==============================\nProcess finished.");
+
+            // Tracking asynchronously loaded files to package everything at the absolute end
+            function checkCompletion() {
+                processedCount++;
+                if (processedCount === files.length) {
+                    printLog("\nPackaging updated files into a ZIP archive...");
+                    
+                    zip.generateAsync({ type: "blob" }).then(function(content) {
+                        const url = URL.createObjectURL(content);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = "updated_csv_files.zip";
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        
+                        console.log("ZIP archive downloaded safely.");
+                        printLog("==============================\nProcess finished. ZIP downloaded.");
+                    });
+                }
+            }
         }
     </script>
 </body>
