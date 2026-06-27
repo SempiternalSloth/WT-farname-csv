@@ -17,8 +17,8 @@
 
     <div id="dropZone" class="drop-zone">
         Drag & drop CSV files here or click to select
-        <input type="file" id="fileInput" multiple accept=".csv" style="display: none;">
     </div>
+    <input type="file" id="fileInput" multiple accept=".csv" style="display: none;">
 
     <div id="log"></div>
 
@@ -27,6 +27,7 @@
         const fileInput = document.getElementById('fileInput');
         const log = document.getElementById('log');
 
+        // Clicking the dropzone now cleanly triggers the file selector
         dropZone.addEventListener('click', () => fileInput.click());
         
         dropZone.addEventListener('dragover', (e) => {
@@ -74,7 +75,6 @@
                 reader.onload = function(e) {
                     try {
                         const text = e.target.result;
-                        // Split by lines, handles \r\n and \n
                         const lines = text.split(/\r?\n/);
                         const unitNames = {};
                         let foundAnyValidRows = false;
@@ -107,7 +107,7 @@
                             const processed = processRow(row);
 
                             if (!processed) {
-                                outputLines.push(line); // Keep comments/headers exactly as they were
+                                outputLines.push(line);
                                 return;
                             }
 
@@ -121,13 +121,13 @@
                             outputLines.push(`${processed.identifier};${currentUnitName}`);
                         });
 
-                        // Trigger download of the modified file
+                        // Trigger download
                         const outputText = outputLines.join('\n');
                         const blob = new Blob([outputText], { type: 'text/csv;charset=utf-8;' });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = file.name; // Keeps original file name
+                        a.download = file.name;
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
