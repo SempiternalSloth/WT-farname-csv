@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CSV Unit Name Editor</title>
+    <style>
+        body { font-family: sans-serif; margin: 40px; max-width: 600px; }
+        .drop-zone { border: 2px dashed #ccc; padding: 40px; text-align: center; cursor: pointer; margin-bottom: 20px; }
+        .drop-zone.hover { border-color: #000; background: #fafafa; }
+        #log { white-space: pre-wrap; background: #eee; padding: 10px; font-family: monospace; display: none; }
+    </style>
+</head>
+<body>
+
+    <h2>CSV Multi-Unit Name Editor</h2>
+    <p>Select or drag and drop CSV files to update <code>_2</code> unit names using their <code>_1</code> counterparts.</p>
+
+    <div id="dropZone" class="drop-zone">
+        Drag & drop CSV files here or click to select
+        <input type="file" id="fileInput" multiple accept=".csv" style="display: none;">
+    </div>
+
+    <div id="log"></div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const log = document.getElementById('log');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('hover');
+        });
+
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('hover'));
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('hover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function printLog(text) {
+            log.style.display = 'block';
+            log.textContent += text + "\n";
+        }
+
+        function processRow(row) {
+            if (!row || !row[0] || !row[0].trim()) return null;
+            const cleanId = row[0].trim();
+            if (cleanId.startsWith('//') || cleanId.startsWith('#') || cleanId.startsWith(';')) return null;
+            if (cleanId === '<ID|readonly|noverify>') return null;
+            if (row.length < 2) return null;
+
+            const unitName = row[1].trim();
+            if (!cleanId.endsWith('_0') && !cleanId.endsWith('_1') && !cleanId.endsWith('_2') && !cleanId.endsWith('_shop')) {
+                return null;
+            }
+            return { identifier: cleanId, unitName: unitName };
+        }
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+            printLog(`Selected ${files.length} file(s). Starting update...\n`);
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const text = e.target.result;
+                        // Split by lines, handles \r\n and \n
+                        const lines = text.split(/\r?\n/);
+                        const unitNames = {};
+                        let foundAnyValidRows = false;
+
+                        // First pass: Find _1 identifiers
+                        lines.forEach((line, index) => {
+                            if (index === 0 || !line.trim()) return;
+                            const row = line.split(';');
+                            const processed = processRow(row);
+                            if (processed) {
+                                foundAnyValidRows = true;
+                                if (processed.identifier.endsWith('_1')) {
+                                    const baseId = processed.identifier.slice(0, -2);
+                                    unitNames[baseId] = processed.unitName;
+                                }
+                            }
+                        });
+
+                        if (!foundAnyValidRows) {
+                            printLog(`Skipping ${file.name}: No valid unit IDs found to parse.`);
+                            return;
+                        }
+
+                        // Second pass: Rebuild file and swap out _2 matches
+                        const outputLines = ['<ID|readonly|noverify>;<English>'];
+
+                        lines.forEach((line, index) => {
+                            if (index === 0 || !line.trim()) return;
+                            const row = line.split(';');
+                            const processed = processRow(row);
+
+                            if (!processed) {
+                                outputLines.push(line); // Keep comments/headers exactly as they were
+                                return;
+                            }
+
+                            let currentUnitName = processed.unitName;
+                            if (processed.identifier.endsWith('_2')) {
+                                const baseId = processed.identifier.slice(0, -2);
+                                if (baseId in unitNames) {
+                                    currentUnitName = unitNames[baseId];
+                                }
+                            }
+                            outputLines.push(`${processed.identifier};${currentUnitName}`);
+                        });
+
+                        // Trigger download of the modified file
+                        const outputText = outputLines.join('\n');
+                        const blob = new Blob([outputText], { type: 'text/csv;charset=utf-8;' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = file.name; // Keeps original file name
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+
+                        printLog(`Successfully updated and downloaded: ${file.name}`);
+
+                    } catch (err) {
+                        printLog(`CRITICAL ERROR in ${file.name}: ${err.message}`);
+                    }
+                });
+                reader.readAsText(file);
+            });
+            
+            printLog("\n==============================\nProcess finished.");
+        }
+    </script>
+</body>
+</html>
